@@ -1,0 +1,14 @@
+Board
+* Piece: bool (X: T, 0: F)
+* Play location (A, B, 1) - (Current board, Next board, Current position)
+* ID (manually created)
+* Winner: bool
+
+Player
+* ID: int django
+
+Current game:
+* active game: (x, y)
+* player turn: X 0
+* active players: [1, 2]
+* ID: int django
