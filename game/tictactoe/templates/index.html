@@ -175,178 +175,228 @@
 
 
     <script>
-        var gameState = [
-    ["","",""],
-    ["","",""],
-    ["","",""]
-];
-var gameFinished = false;
-var playerTurn = true;
-var aiTurn = true;
-
-var numOfWhites = [];
-var numOfBlacks = [];
-
-
-var board = document.getElementById("board");
-board.addEventListener('click', playerPlay);
-
-aiPlay();
-function playerPlay(ev){
-    if(playerTurn){
-        if(ev.target.textContent == ""){
-            ev.target.textContent = "X";
-            var x = ev.target.id[0];
-            var y = ev.target.id[1]
-            gameState[x][y] = "X";
-
-            ////////remove for normal tictactoe
-            // if(numOfWhites.length >=3){
-            //     gameState[numOfWhites[0].x][numOfWhites[0].y]="";
-            //     document.getElementById(""+numOfWhites[0].x+numOfWhites[0].y).textContent="";
-            //     numOfWhites.splice(0,1);
-            // }
-            // numOfWhites.push({x,y});
-
-            /////////////////////////////////////////////
+        // board state: 9 small boards, each is 3x3
+        var boardState = [];
+        for (let i = 0; i < 9; i++) {
+            boardState[i] = [["","",""], ["","",""], ["","",""]];
         }
-        if(checkPlayerWin("X")){
-            setTimeout(()=>{
-                alert("player win")
-                return;
-            },1000);
-        }else if(catsgame()){
-            setTimeout(()=>{
-                alert("catsgame")
-            return;
-            },1000);
+        
+        // game: tracks which player won each small board
+        var gameState = ["","","","","","","","",""];
+        
+        // Which board the current player must play in (null = any board)
+        var activeBoard = null;
+        var gameFinished = false;
+
+        var gameBoard = document.getElementById("game-board");
+        gameBoard.addEventListener('click', playerPlay);
+
+        setTimeout(() => aiPlay(), 500);
+
+        function playerPlay(ev){
+            if (!ev.target.classList.contains('cell') || gameFinished) return;
             
+            const boardIndex = parseInt(ev.target.dataset.board);
+            const cellIndex = parseInt(ev.target.dataset.cell);
+            const row = Math.floor(cellIndex / 3);
+            const col = cellIndex % 3;
+            
+            // Check if cell is empty
+            if (boardState[boardIndex][row][col] !== "") return;
+            
+            // Check if move is allowed (must play in activeBoard if specified)
+            if (activeBoard !== null && activeBoard !== boardIndex) return;
+            
+            // Make the move
+            boardState[boardIndex][row][col] = "X";
+            ev.target.textContent = "X";
+            
+            // Check if this small board is won
+            if (checkBoardWin(boardIndex, "X")) {
+                gameState[boardIndex] = "X";
+                document.querySelector(`.small-board[data-board="${boardIndex}"]`).style.opacity = "0.6";
+            }
+            
+            // Check if game is won
+            if (checkGameWin("X")) {
+                gameFinished = true;
+                setTimeout(() => alert("🎉 Player wins!"), 300);
+                return;
+            }
+            
+            // Set active board for opponent based on cell just played
+            activeBoard = cellIndex;
+            if (gameState[cellIndex] !== "") activeBoard = null; // If that board is won, can play anywhere
+            
+            setTimeout(() => aiPlay(), 1000);
         }
-        else{
-            setTimeout(()=>{
-                aiPlay();
-            },1000);
-        }
-    }
-}
 
-function aiPlay(){
-    console.log("hi")
-    var bestScore = -1000;
-    var bestMove;
-        for(var x = 0;x<3;x++){
-            for(var i=0;i<3;i++){
-                if(gameState[x][i] ==""){
-                    gameState[x][i] = "O";
-                    let score = minmax(gameState, false);
-                    gameState[x][i] = "";
-                    if(score>bestScore){
-                        bestScore=score;
-                        bestMove = {x,i};
+        function aiPlay(){
+            if (gameFinished) return;
+            
+            var validMoves = getValidMoves();
+            if (validMoves.length === 0) {
+                alert("Draw!");
+                return;
+            }
+            
+            var bestScore = -1000;
+            var bestMove;
+            
+            // Evaluate each valid move
+            for (const move of validMoves) {
+                const {boardIndex, cellIndex} = move;
+                const row = Math.floor(cellIndex / 3);
+                const col = cellIndex % 3;
+                
+                // Simulate move
+                boardState[boardIndex][row][col] = "O";
+                let score = evaluateMove(boardIndex);
+                boardState[boardIndex][row][col] = "";
+                
+                if (score > bestScore) {
+                    bestScore = score;
+                    bestMove = move;
+                }
+            }
+            
+            if (!bestMove) return;
+            
+            const {boardIndex, cellIndex} = bestMove;
+            const row = Math.floor(cellIndex / 3);
+            const col = cellIndex % 3;
+            
+            // Make the move
+            boardState[boardIndex][row][col] = "O";
+            const cell = document.querySelector(`[data-board="${boardIndex}"][data-cell="${cellIndex}"]`);
+            cell.textContent = "O";
+            
+            // Check if this small board is won
+            if (checkBoardWin(boardIndex, "O")) {
+                gameState[boardIndex] = "O";
+                document.querySelector(`.small-board[data-board="${boardIndex}"]`).style.opacity = "0.6";
+            }
+            
+            // Check if game is won
+            if (checkGameWin("O")) {
+                gameFinished = true;
+                setTimeout(() => alert("AI wins!"), 300);
+                return;
+            }
+            
+            // Set active board for player
+            activeBoard = cellIndex;
+            if (gameState[cellIndex] !== "") activeBoard = null;
+        }
+
+        function evaluateMove(boardIndex) {
+            let score = 0;
+            
+            // Can AI win the game?
+            if (checkBoardWin(boardIndex, "O")) {
+                gameState[boardIndex] = "O";
+                if (checkGameWin("O")) score += 1000;
+                gameState[boardIndex] = "";
+            }
+            
+            // Can AI win this small board?
+            if (checkBoardWin(boardIndex, "O")) score += 100;
+            
+            // Block player from winning small board
+            if (checkBoardWin(boardIndex, "X")) score += 50;
+            
+            // Block player from winning game
+            if (checkBoardWin(boardIndex, "X")) {
+                gameState[boardIndex] = "X";
+                if (checkGameWin("X")) score += 500;
+                gameState[boardIndex] = "";
+            }
+            
+            // Play in center or corners of small board
+            const lastMove = Array.from(document.querySelectorAll(`[data-board="${boardIndex}"][data-cell]`))
+                .findIndex(el => el.textContent === "");
+            if ([4, 0, 2, 6, 8].includes(lastMove)) score += 5;
+            
+            return score;
+        }
+
+        function getValidMoves() {
+            var moves = [];
+            
+            if (activeBoard === null) {
+                // Can play in any board that isn't won
+                for (let b = 0; b < 9; b++) {
+                    if (gameState[b] !== "") continue;
+                    for (let i = 0; i < 3; i++) {
+                        for (let j = 0; j < 3; j++) {
+                            if (boardState[b][i][j] === "") {
+                                moves.push({boardIndex: b, cellIndex: i * 3 + j});
+                            }
+                        }
+                    }
+                }
+            } else {
+                // Must play in activeBoard if it's not won
+                const b = activeBoard;
+                if (gameState[b] === "") {
+                    for (let i = 0; i < 3; i++) {
+                        for (let j = 0; j < 3; j++) {
+                            if (boardState[b][i][j] === "") {
+                                moves.push({boardIndex: b, cellIndex: i * 3 + j});
+                            }
+                        }
+                    }
+                } else {
+                    // Board is won, can play anywhere
+                    for (let b = 0; b < 9; b++) {
+                        if (gameState[b] !== "") continue;
+                        for (let i = 0; i < 3; i++) {
+                            for (let j = 0; j < 3; j++) {
+                                if (boardState[b][i][j] === "") {
+                                    moves.push({boardIndex: b, cellIndex: i * 3 + j});
+                                }
+                            }
+                        }
                     }
                 }
             }
+            
+            return moves;
         }
-        gameState[bestMove.x][bestMove.i] = "O";
-        document.getElementById(""+bestMove.x+bestMove.i).textContent = "O";
 
-        //////remove for normal tic tac toe
-        // numOfBlacks.push(bestMove);
-
-        // if(numOfBlacks.length >=4){
-        //     gameState[numOfBlacks[0].x][numOfBlacks[0].i]="";
-        //     document.getElementById(""+numOfBlacks[0].x+numOfBlacks[0].i).textContent="";
-        //     numOfBlacks.splice(0,1);
-        // }
-        /////////////////////////////////////////////////
-
-        if(checkPlayerWin("O")){
-            setTimeout(()=>{
-                alert("ai wins");
-            },1000)
-        }
-        if(catsgame()){
-            setTimeout(()=>{
-                alert("catsgame")
-            },1000)
-        }
-}
-
-function minmax(board, aiTurn){
-    if(checkPlayerWin("O")){
-        return 1;
-    }
-    else if(checkPlayerWin("X")){
-        return -1;
-    }
-    else if (catsgame()){
-        return 0;
-    }
-
-    if(aiTurn){
-        var bestScore = -1000;
-        for(var x = 0;x<3;x++){
-            for(var i=0;i<3;i++){
-                if(board[x][i] ==""){
-                    board[x][i] = "O";
-                    let score = minmax(board, false);
-                    board[x][i] = "";
-                    if(score>bestScore){
-                        bestScore=score;
-                    }
-                }
+        function checkBoardWin(boardIndex, player) {
+            const board = boardState[boardIndex];
+            
+            // Check rows and columns
+            for (let i = 0; i < 3; i++) {
+                if (board[i][0] === player && board[i][1] === player && board[i][2] === player) return true;
+                if (board[0][i] === player && board[1][i] === player && board[2][i] === player) return true;
             }
+            
+            // Check diagonals
+            if (board[0][0] === player && board[1][1] === player && board[2][2] === player) return true;
+            if (board[0][2] === player && board[1][1] === player && board[2][0] === player) return true;
+            
+            return false;
         }
-        return bestScore;
-    }
-    else{
-        var bestScore = 1000;
-        for(var x = 0;x<3;x++){
-            for(var i=0;i<3;i++){
-                if(board[x][i] ==""){
-                    board[x][i] = "X";
-                    let score = minmax(board, true);
-                    board[x][i] = "";
-                    if(score<bestScore){
-                        bestScore=score;
-                    }
-                }
+
+        function checkGameWin(player) {
+            // Check rows
+            for (let i = 0; i < 3; i++) {
+                if (gameState[i*3] === player && gameState[i*3+1] === player && gameState[i*3+2] === player) return true;
             }
-        }
-        return bestScore;
-    }
-}
-
-function checkPlayerWin(player){
-    for (let i = 0; i < 3; i++) {
-        if (
-            gameState[i][0] === player && gameState[i][1] === player && gameState[i][2] === player || // Row check
-            gameState[0][i] === player && gameState[1][i] === player && gameState[2][i] === player   // Column check
-        ) {
-            return true;
-        }
-    }
-    if (
-        gameState[0][0] === player && gameState[1][1] === player && gameState[2][2] === player || // Main diagonal
-        gameState[0][2] === player && gameState[1][1] === player && gameState[2][0] === player   // Anti-diagonal
-    ) {
-        return true;
-    }
-
-    return false;
-}
-
-function catsgame(){
-    for(var x = 0;x<3;x++){
-        for(var i = 0;i<3;i++){
-            if(gameState[x][i]==""){
-                return false;
+            
+            // Check columns
+            for (let i = 0; i < 3; i++) {
+                if (gameState[i] === player && gameState[i+3] === player && gameState[i+6] === player) return true;
             }
+            
+            // Check diagonals
+            if (gameState[0] === player && gameState[4] === player && gameState[8] === player) return true;
+            if (gameState[2] === player && gameState[4] === player && gameState[6] === player) return true;
+            
+            return false;
         }
-    }
-    return true;
-}
-
 
     </script>
 </body>
