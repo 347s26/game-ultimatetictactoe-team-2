@@ -7,8 +7,8 @@ from django.urls import reverse
 class Game(models.Model):
     """Model representing the game"""
     id = models.IntegerField
-    player_x_id = models.ManyToManyField("User")
-    player_y_id = models.ManyToManyField("User")
+    player_x_id = models.ManyToManyField("User", related_name = "player_x_game")
+    player_o_id = models.ManyToManyField("User", related_name = "player_o_game")
     board = models.JSONField
     turn = models.BooleanField  # True for X, False for O
     game_active = models.BooleanField
